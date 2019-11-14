@@ -1,0 +1,44 @@
+sudo: required
+services:
+  - docker
+
+# basically the build step for the test image; we build a new docker image by using the Dockerfile.dev
+# and tag it then
+before_install:
+  - docker build -t dominator88/multi-test -f ./client/Dockerfile.dev ./client
+
+# run the build for tests
+# for this start the docker-react container and execute specific CMD: npm run test
+script:
+  - docker run -e CI=true dominator88/multi-test npm run test
+
+# Build the images for each sub-folders and push to Docker Hub
+after_success:
+  - docker build -t dominator88/multi-client ./client
+  - docker build -t dominator88/multi-nginx ./nginx
+  - docker build -t dominator88/multi-server ./server
+  - docker build -t dominator88/multi-worker ./worker
+  # Login to the docker CLI
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  # Take those images and push them to Docker Hub
+  - docker push dominator88/multi-client
+  - docker push dominator88/multi-nginx
+  - docker push dominator88/multi-server
+  - docker push dominator88/multi-worker
+
+# deploy stage to ElasticBeanstalk
+# In AWS Console, create the ElasticBeanstalk app with the name 'multi-docker'
+deploy:
+  provider: elasticbeanstalk
+  region: "eu-central-1"
+  app: "multi-docker"
+  env: "MultiDocker-env"
+  # The S3 bucket needs to be created or choose an existing one
+  bucket_name: "elasticbeanstalk-eu-central-1-825642561168"
+  bucket_path: "multi-docker"
+  on:
+    branch: master
+  access_key_id:
+    secure: "$AWS_ACCESS_KEY"
+  secret_access_key:
+    secure: "$AWS_SECRET_KEY"

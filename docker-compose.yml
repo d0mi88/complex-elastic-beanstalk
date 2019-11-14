@@ -1,0 +1,61 @@
+version: '3'
+services:
+  # Nginx is our proxy server, responsible for the routing (e.g. / to React-Server, /api to the API)
+  nginx:
+    # the proxy should always run
+    restart: always
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./nginx
+    ports:
+      - '3050:80'
+  # Database
+  postgres:
+    image: 'postgres:latest'
+  # Redis
+  redis:
+    image: 'redis:latest'
+  # Our custom API backend service
+  api:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./server
+    volumes:
+      # don't overwrite the node_modules folder; keep it local in the container
+      - /app/node_modules
+      # mount the server directory into the /app folder inside of the container
+      - ./server:/app
+    environment: 
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PGUSER=postgres
+      - PGHOST=postgres
+      - PGDATABASE=postgres
+      - PGPASSWORD=postgres_password
+      - PGPORT=5432
+    depends_on: 
+      - postgres
+  # Our custom React frontend
+  client:
+    build: 
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      # don't overwrite the node_modules folder; keep it local in the container
+      - /app/node_modules
+      # mount the client directory into the /app folder inside of the container
+      - ./client:/app
+  # Our custom worker processing the fib calculation
+  worker:
+    build: 
+      dockerfile: Dockerfile.dev
+      context: ./worker
+    volumes:
+      # don't overwrite the node_modules folder; keep it local in the container
+      - /app/node_modules
+      # mount the worker directory into the /app folder inside of the container
+      - ./worker:/app
+    # The worker needs to know about Redis
+    environment: 
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
